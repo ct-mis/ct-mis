@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>台灣環島大富翁 - 太魯閣實景版</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --board-bg: #e3f2fd;
+            --tile-bg: #ffffff;
+            --tile-border: #546e7a;
+            --p1-color: #d32f2f; /* 紅色車子 */
+            --p2-color: #2e7d32; /* 綠色機器人 */
+            --p1-bg: #ffcdd2;    /* 玩家1領地背景 */
+            --p2-bg: #c8e6c9;    /* 玩家2領地背景 */
+            --dice-size: 50px;
+            --chance-bg: #e1bee7;
+            --destiny-bg: #ffccbc;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+            background-color: #263238;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ------ 太魯閣片頭動畫 ------ */
+        #intro-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease-out;
+            color: white;
+            text-align: center;
+            overflow: hidden;
+        }
+
+        /* 實景背景圖 */
+        .taroko-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* 使用 Unsplash 的太魯閣/峽谷風格圖片 */
+            background-image: url('https://images.unsplash.com/photo-1552993873-0dd1110e025f?q=80&w=1920&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            z-index: -2;
+            animation: slowZoom 20s infinite alternate;
+        }
+
+        /* 雲霧效果 */
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.4);
+            border-radius: 50%;
+            filter: blur(30px);
+            animation: floatCloud 25s linear infinite;
+        }
+
+        @keyframes slowZoom {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.1); }
+        }
+
+        @keyframes floatCloud {
+            0% { transform: translateX(-100vw); opacity: 0; }
+            10% { opacity: 0.6; }
+            90% { opacity: 0.6; }
+            100% { transform: translateX(100vw); opacity: 0; }
+        }
+
+        #intro-content {
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 40px;
+            border-radius: 20px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.3);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            animation: zoomIn 1.5s ease-out;
+        }
+
+        .intro-title {
+            font-size: 8vmin;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 10px rgba(0,0,0,1);
+            letter-spacing: 5px;
+            color: #fff;
+        }
+        
+        .intro-subtitle {
+            font-size: 4vmin;
+            margin-bottom: 30px;
+            font-weight: 300;
+            color: #e0e0e0;
+        }
+
+        #start-btn {
+            padding: 15px 60px;
+            font-size: 5vmin;
+            background: linear-gradient(45deg, #d84315, #ff5722);
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(216, 67, 21, 0.5);
+            font-weight: bold;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #start-btn:hover { transform: scale(1.05); box-shadow: 0 8px 25px rgba(216, 67, 21, 0.7); }
+        #start-btn:active { transform: scale(0.95); }
+
+        .fade-out { opacity: 0 !important; pointer-events: none; }
+
+        @keyframes zoomIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* ------ 遊戲主畫面 ------ */
+        #game-container {
+            width: 98vmin;
+            height: 98vmin;
+            background-color: var(--board-bg);
+            border-radius: 12px;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 2px;
+            padding: 4px;
+            opacity: 0;
+            transition: opacity 1s;
+        }
+
+        .tile {
+            background-color: var(--tile-bg);
+            border: 1px solid var(--tile-border);
+            border-radius: 4px;
+            font-size: 1.8vmin;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            color: #333;
+            overflow: hidden;
+            padding-top: 3px;
+            transition: background-color 0.3s;
+        }
+
+        .tile-name { z-index: 2; margin-bottom: 2px; font-weight: 800; }
+        .tile-price { font-size: 1.4vmin; color: #555; font-weight: normal; z-index: 2; }
+        
+        .house-container {
+            display: flex;
+            gap: 1px;
+            margin-top: 1px;
+            z-index: 2;
+            height: 1.4vmin;
+            justify-content: center;
+            width: 100%;
+        }
+        .house-icon { color: #f57c00; font-size: 1.4vmin; }
+
+        /* 角落 */
+        .tile:nth-child(1), .tile:nth-child(8), .tile:nth-child(15), .tile:nth-child(22) {
+            background-color: #fff3e0;
+        }
+        .tile.is-chance { background-color: var(--chance-bg); color: #4a148c; justify-content: center; padding-top: 0;}
+        .tile.is-destiny { background-color: var(--destiny-bg); color: #bf360c; justify-content: center; padding-top: 0;}
+
+        .tile.owned-p1 { background-color: var(--p1-bg); border: 2px solid var(--p1-color); }
+        .tile.owned-p2 { background-color: var(--p2-bg); border: 2px solid var(--p2-color); }
+
+        .player-token {
+            font-size: 3.5vmin;
+            position: absolute;
+            transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+            z-index: 10;
+            filter: drop-shadow(2px 2px 2px rgba(0,0,0,0.5));
+        }
+
+        .player-1 { color: var(--p1-color); top: 55%; left: 10%; }
+        .player-2 { color: var(--p2-color); top: 55%; right: 10%; }
+
+        /* 當兩人在同一格時錯開 */
+        .tile.has-p1.has-p2 .player-1 { transform: translate(-8px, -5px); }
+        .tile.has-p1.has-p2 .player-2 { transform: translate(8px, 5px); }
+
+        /* 中央區域 */
+        #center-area {
+            grid-column: 2 / 8;
+            grid-row: 2 / 8;
+            background: linear-gradient(135deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.95) 100%);
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 5;
+            position: relative;
+            padding: 10px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+        }
+
+        /* 玩家計分板 */
+        .score-board {
+            display: flex;
+            width: 100%;
+            justify-content: space-around;
+            margin-bottom: 5px;
+        }
+        
+        .player-card {
+            background: #fff;
+            padding: 8px 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 45%;
+            border: 2px solid transparent;
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .player-card.active { border-color: #ff9800; background-color: #fff8e1; transform: scale(1.05); }
+
+        .skip-badge {
+            position: absolute;
+            top: -8px; right: -8px;
+            background-color: #d32f2f; color: white;
+            border-radius: 50%; width: 24px; height: 24px;
+            font-size: 14px; display: flex; justify-content: center; align-items: center;
+            display: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .p-name { font-weight: bold; font-size: 3vmin; margin-bottom: 4px; }
+        .p-money { font-size: 3.5vmin; font-family: "Courier New", monospace; color: #333; font-weight: bold; }
+        .p1-style { color: var(--p1-color); }
+        .p2-style { color: var(--p2-color); }
+
+        /* 控制區 */
+        .game-controls {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; flex-grow: 1; width: 100%;
+        }
+
+        #status-text {
+            font-size: 3.5vmin; margin-bottom: 15px; font-weight: bold; color: #37474f;
+            text-align: center; min-height: 2.4em; white-space: pre-line; width: 90%; line-height: 1.3;
+        }
+
+        #roll-btn {
+            padding: 12px 50px; font-size: 4vmin; background: linear-gradient(to bottom, #ffa726, #fb8c00); color: white;
+            border: none; border-radius: 50px; cursor: pointer; box-shadow: 0 4px #e65100;
+            transition: all 0.1s; font-weight: bold; text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+        }
+
+        #roll-btn:active { transform: translateY(4px); box-shadow: 0 0 #e65100; }
+        #roll-btn:disabled { background: #cfd8dc; color: #90a4ae; box-shadow: none; cursor: not-allowed; }
+
+        /* ------ 3D 骰子樣式 ------ */
+        .dice-container {
+            width: var(--dice-size); height: var(--dice-size);
+            perspective: 800px; margin-bottom: 25px; display: none;
+        }
+        .dice { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; }
+        .face {
+            position: absolute; width: 100%; height: 100%; background: #fff;
+            border: 1px solid #ccc; border-radius: 8px;
+            display: flex; justify-content: center; align-items: center; font-size: 0;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.15);
+        }
+        .dot {
+            display: block; width: 10px; height: 10px; border-radius: 50%;
+            background-color: #222; position: absolute;
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        /* 紅色點數: 1 和 4 */
+        .face[data-face="1"] .dot, .face[data-face="4"] .dot { background-color: #d32f2f; }
+        
+        /* Transforms for faces */
+        .face[data-face="1"] { transform: rotateY(0deg) translateZ(25px); }
+        .face[data-face="2"] { transform: rotateY(180deg) translateZ(25px); }
+        .face[data-face="3"] { transform: rotateY(90deg) translateZ(25px); }
+        .face[data-face="4"] { transform: rotateY(-90deg) translateZ(25px); }
+        .face[data-face="5"] { transform: rotateX(90deg) translateZ(25px); }
+        .face[data-face="6"] { transform: rotateX(-90deg) translateZ(25px); }
+
+        /* Dot Layout */
+        .face[data-face="1"] .dot:nth-child(1) { width: 18px; height: 18px; } /* Big red dot */
+        .face[data-face="2"] .dot:nth-child(1) { top: 20%; left: 20%; }
+        .face[data-face="2"] .dot:nth-child(2) { bottom: 20%; right: 20%; }
+        .face[data-face="3"] .dot:nth-child(1) { top: 20%; left: 20%; }
+        .face[data-face="3"] .dot:nth-child(2) { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .face[data-face="3"] .dot:nth-child(3) { bottom: 20%; right: 20%; }
+        .face[data-face="4"] .dot:nth-child(1) { top: 20%; left: 20%; }
+        .face[data-face="4"] .dot:nth-child(2) { top: 20%; right: 20%; }
+        .face[data-face="4"] .dot:nth-child(3) { bottom: 20%; left: 20%; }
+        .face[data-face="4"] .dot:nth-child(4) { bottom: 20%; right: 20%; }
+        .face[data-face="5"] .dot:nth-child(1) { top: 20%; left: 20%; }
+        .face[data-face="5"] .dot:nth-child(2) { top: 20%; right: 20%; }
+        .face[data-face="5"] .dot:nth-child(3) { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .face[data-face="5"] .dot:nth-child(4) { bottom: 20%; left: 20%; }
+        .face[data-face="5"] .dot:nth-child(5) { bottom: 20%; right: 20%; }
+        .face[data-face="6"] .dot:nth-child(1) { top: 15%; left: 20%; }
+        .face[data-face="6"] .dot:nth-child(2) { top: 15%; right: 20%; }
+        .face[data-face="6"] .dot:nth-child(3) { top: 50%; left: 20%; transform: translateY(-50%); }
+        .face[data-face="6"] .dot:nth-child(4) { top: 50%; right: 20%; transform: translateY(-50%); }
+        .face[data-face="6"] .dot:nth-child(5) { bottom: 15%; left: 20%; }
+        .face[data-face="6"] .dot:nth-child(6) { bottom: 15%; right: 20%; }
+
+        /* Overlay */
+        #overlay-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            visibility: hidden; opacity: 0; transition: opacity 0.3s;
+            backdrop-filter: blur(2px);
+        }
+        #overlay-layer.active { visibility: visible; opacity: 1; }
+
+        /* 翻牌動畫 */
+        .card-container { width: 60vmin; height: 75vmin; perspective: 1000px; display: none; }
+        .card-container.active-mode { display: block; }
+        .card-inner {
+            position: relative; width: 100%; height: 100%; text-align: center;
+            transition: transform 0.8s; transform-style: preserve-3d;
+        }
+        .card-container.flipped .card-inner { transform: rotateY(180deg); }
+        .card-front, .card-back {
+            position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
+            border-radius: 15px; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.4); border: 8px solid white;
+        }
+        .card-front { background-color: #333; color: white; transform: rotateY(0deg); cursor: pointer; }
+        .card-front.chance-bg { background: linear-gradient(135deg, #7b1fa2, #4a148c); }
+        .card-front.destiny-bg { background: linear-gradient(135deg, #e64a19, #bf360c); }
+        .card-front i { font-size: 15vmin; margin-bottom: 20px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3)); }
+        .card-front h2 { font-size: 8vmin; text-transform: uppercase; letter-spacing: 2px; }
+        .card-back {
+            background-color: white; color: #333; transform: rotateY(180deg);
+            padding: 20px; justify-content: space-between;
+        }
+        .card-back h3 { font-size: 6vmin; margin-bottom: 10px; font-weight: bold; border-bottom: 2px solid #eee; width: 100%; padding-bottom: 10px; }
+        .card-description { font-size: 5vmin; font-weight: bold; margin-bottom: 20px; white-space: pre-line; color: #444; }
+        .card-icon-lg { font-size: 12vmin; margin: 20px 0; color: #607d8b; }
+        .modal-btn {
+            padding: 12px 40px; font-size: 4vmin; background-color: #1976d2; color: white;
+            border: none; border-radius: 30px; cursor: pointer; margin: 10px;
+            box-shadow: 0 4px #0d47a1; transition: transform 0.1s;
+        }
+        .modal-btn:active { transform: translateY(4px); box-shadow: none; }
+
+        /* 對話框 */
+        .modal-box {
+            background: white; width: 85vmin; padding: 25px; border-radius: 15px;
+            text-align: center; display: none; box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+            animation: popIn 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+        }
+        .modal-box.active-mode { display: block; }
+        .modal-title { font-size: 5.5vmin; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .modal-text { font-size: 4vmin; margin-bottom: 25px; color: #555; line-height: 1.6; }
+        .btn-group { display: flex; justify-content: center; gap: 20px; }
+        .btn-yes { background-color: #4caf50; box-shadow: 0 4px #2e7d32; }
+        .btn-no { background-color: #f44336; box-shadow: 0 4px #c62828; }
+
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+
+<!-- 背景音樂 -->
+<audio id="bgm" loop>
+    <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mp3">
+</audio>
+
+<!-- 太魯閣實景片頭 -->
+<div id="intro-screen">
+    <div class="taroko-bg"></div>
+    <!-- 雲霧 -->
+    <div class="cloud" style="top: 10%; width: 200px; height: 100px; left: -20%;"></div>
+    <div class="cloud" style="top: 30%; width: 300px; height: 120px; left: -10%; animation-duration: 30s;"></div>
+    <div class="cloud" style="top: 20%; width: 250px; height: 100px; right: -20%; animation-direction: reverse;"></div>
+    
+    <div id="intro-content">
+        <div class="intro-title">台灣環島大富翁</div>
+        <div class="intro-subtitle">太魯閣風情版</div>
+        <button id="start-btn" onclick="startGame()">開始旅程</button>
+    </div>
+</div>
+
+<!-- 遊戲主體 -->
+<div id="game-container">
+    <div id="center-area">
+        <div class="score-board">
+            <div class="player-card active" id="p1-card">
+                <div class="p-name p1-style"><i class="fas fa-car-side"></i> 玩家 1</div>
+                <div class="p-money">$<span id="p1-money">10000</span></div>
+                <div class="skip-badge" id="p1-skip"><i class="fas fa-ban"></i></div>
+            </div>
+            <div class="player-card" id="p2-card">
+                <div class="p-name p2-style"><i class="fas fa-robot"></i> 玩家 2</div>
+                <div class="p-money">$<span id="p2-money">10000</span></div>
+                <div class="skip-badge" id="p2-skip"><i class="fas fa-ban"></i></div>
+            </div>
+        </div>
+
+        <div class="game-controls">
+            <div class="dice-container" id="dice-wrapper">
+                <div class="dice" id="dice">
+                    <div class="face" data-face="1"><span class="dot"></span></div>
+                    <div class="face" data-face="2"><span class="dot"></span><span class="dot"></span></div>
+                    <div class="face" data-face="3"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                    <div class="face" data-face="4"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                    <div class="face" data-face="5"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                    <div class="face" data-face="6"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                </div>
+            </div>
+            <div id="status-text">準備好環島了嗎？</div>
+            <button id="roll-btn" onclick="game.turn()" disabled>擲骰子</button>
+        </div>
+    </div>
+</div>
+
+<!-- 彈出層 (機會/命運/對話框) -->
+<div id="overlay-layer">
+    <!-- 卡片 -->
+    <div class="card-container" id="card-scene">
+        <div class="card-inner" id="card-inner">
+            <div class="card-front" id="card-front-face">
+                <i class="fas fa-question"></i>
+                <h2>機會</h2>
+            </div>
+            <div class="card-back">
+                <div style="flex-grow:1; display:flex; flex-direction:column; justify-content:center; align-items:center;">
+                    <h3 id="card-title">機會卡</h3>
+                    <div id="card-icon-area" class="card-icon-lg"></div>
+                    <div class="card-description" id="card-desc">內容</div>
+                </div>
+                <button class="modal-btn" onclick="game.closeCard()">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 詢問視窗 -->
+    <div class="modal-box" id="modal-box">
+        <div class="modal-title" id="modal-title">標題</div>
+        <div class="modal-text" id="modal-text">內容</div>
+        <div class="btn-group">
+            <button class="modal-btn btn-yes" id="modal-yes">是</button>
+            <button class="modal-btn btn-no" id="modal-no">否</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 遊戲初始化 ---
+    function startGame() {
+        const bgm = document.getElementById('bgm');
+        bgm.volume = 0.3;
+        bgm.play().catch(e => console.log("Auto-play prevented by browser policy", e));
+
+        const screen = document.getElementById('intro-screen');
+        const gameContainer = document.getElementById('game-container');
+        
+        // 淡出動畫
+        screen.style.opacity = '0';
+        setTimeout(() => {
+            screen.classList.add('fade-out');
+            gameContainer.style.opacity = '1';
+            document.getElementById('status-text').innerText = "遊戲開始！\n輪到 玩家 1 (車子)";
+            document.getElementById('roll-btn').disabled = false;
+        }, 1000);
+    }
+
+    // 地圖資料 (24地名 + 4功能格 = 28格)
+    const mapData = [
+        { name: "台北", type: 'prop', price: 4000, rent: 400, owner: null, level: 0 },
+        { name: "基隆", type: 'prop', price: 2000, rent: 200, owner: null, level: 0 },
+        { name: "新北", type: 'prop', price: 3000, rent: 300, owner: null, level: 0 },
+        { name: "桃園", type: 'prop', price: 2500, rent: 250, owner: null, level: 0 },
+        { name: "機會", type: 'chance' },
+        { name: "新竹", type: 'prop', price: 2500, rent: 250, owner: null, level: 0 },
+        { name: "苗栗", type: 'prop', price: 2000, rent: 200, owner: null, level: 0 },
+        { name: "台中", type: 'prop', price: 3500, rent: 350, owner: null, level: 0 },
+        { name: "彰化", type: 'prop', price: 2200, rent: 220, owner: null, level: 0 },
+        { name: "南投", type: 'prop', price: 2000, rent: 200, owner: null, level: 0 },
+        { name: "雲林", type: 'prop', price: 1800, rent: 180, owner: null, level: 0 },
+        { name: "命運", type: 'destiny' },
+        { name: "嘉義", type: 'prop', price: 2200, rent: 220, owner: null, level: 0 },
+        { name: "台南", type: 'prop', price: 3000, rent: 300, owner: null, level: 0 },
+        { name: "高雄", type: 'prop', price: 3800, rent: 380, owner: null, level: 0 },
+        { name: "屏東", type: 'prop', price: 2400, rent: 240, owner: null, level: 0 },
+        { name: "墾丁", type: 'prop', price: 3000, rent: 300, owner: null, level: 0 },
+        { name: "台東", type: 'prop', price: 2200, rent: 220, owner: null, level: 0 },
+        { name: "機會", type: 'chance' },
+        { name: "花蓮", type: 'prop', price: 2600, rent: 260, owner: null, level: 0 },
+        { name: "太魯閣", type: 'prop', price: 2800, rent: 280, owner: null, level: 0 },
+        { name: "宜蘭", type: 'prop', price: 2400, rent: 240, owner: null, level: 0 },
+        { name: "羅東", type: 'prop', price: 2000, rent: 200, owner: null, level: 0 },
+        { name: "蘇澳", type: 'prop', price: 1800, rent: 180, owner: null, level: 0 },
+        { name: "馬祖", type: 'prop', price: 1500, rent: 150, owner: null, level: 0 },
+        { name: "金門", type: 'prop', price: 1800, rent: 180, owner: null, level: 0 },
+        { name: "命運", type: 'destiny' },
+        { name: "澎湖", type: 'prop', price: 2500, rent: 250, owner: null, level: 0 }
+    ];
+
+    // 10種機會
+    const chanceCards = [
+        { type: 'money', val: 2000, text: "統一發票中獎！\n獲得 $2,000", icon: "fa-receipt" },
+        { type: 'money', val: 3000, text: "投資獲利！\n獲得 $3,000", icon: "fa-chart-line" },
+        { type: 'move', val: 3, text: "搭乘高鐵！\n前進 3 步", icon: "fa-train" },
+        { type: 'goto', target: 0, text: "直接返回台北", icon: "fa-plane" },
+        { type: 'move', val: 1, text: "天氣晴朗，多走 1 步", icon: "fa-walking" },
+        { type: 'money', val: 1000, text: "撿到錢！\n獲得 $1,000", icon: "fa-coins" },
+        { type: 'move', val: 2, text: "發現捷徑！\n前進 2 步", icon: "fa-route" },
+        { type: 'money', val: 500, text: "獲得小費\n獲得 $500", icon: "fa-smile-beam" },
+        { type: 'money', val: 1500, text: "退稅收入\n獲得 $1,500", icon: "fa-hand-holding-usd" },
+        { type: 'stop', val: 1, text: "喝杯珍珠奶茶休息\n暫停 1 回合", icon: "fa-coffee" }
+    ];
+
+    // 10種命運
+    const destinyCards = [
+        { type: 'money', val: -1000, text: "超速罰單！\n支付 $1,000", icon: "fa-file-invoice" },
+        { type: 'money', val: -2000, text: "請朋友吃飯！\n支付 $2,000", icon: "fa-utensils" },
+        { type: 'goto', target: 20, text: "突然想去太魯閣玩\n直接前往太魯閣", icon: "fa-mountain" },
+        { type: 'money', val: -500, text: "錢包破洞！\n損失 $500", icon: "fa-wallet" },
+        { type: 'move', val: -2, text: "忘記帶東西！\n後退 2 步", icon: "fa-undo" },
+        { type: 'goto', target: 0, text: "被強制遣返台北", icon: "fa-home" },
+        { type: 'stop', val: 1, text: "車子拋錨\n暫停 1 回合", icon: "fa-car-crash" },
+        { type: 'stop', val: 1, text: "連假塞車中\n暫停 1 回合", icon: "fa-traffic-light" },
+        { type: 'move', val: -3, text: "遇到颱風！\n後退 3 步", icon: "fa-wind" },
+        { type: 'money', val: -1500, text: "繳納保險費\n支付 $1,500", icon: "fa-shield-alt" }
+    ];
+
+    const gridCoordinates = [
+        {r:1, c:1}, {r:1, c:2}, {r:1, c:3}, {r:1, c:4}, {r:1, c:5}, {r:1, c:6}, {r:1, c:7}, {r:1, c:8},
+        {r:2, c:8}, {r:3, c:8}, {r:4, c:8}, {r:5, c:8}, {r:6, c:8}, {r:7, c:8},
+        {r:8, c:8}, {r:8, c:7}, {r:8, c:6}, {r:8, c:5}, {r:8, c:4}, {r:8, c:3}, {r:8, c:2}, {r:8, c:1},
+        {r:7, c:1}, {r:6, c:1}, {r:5, c:1}, {r:4, c:1}, {r:3, c:1}, {r:2, c:1}
+    ];
+
+    class Game {
+        constructor() {
+            this.players = [
+                { id: 1, pos: 0, money: 10000, skipTurn: 0, icon: '<i class="fas fa-car-side"></i>', name: "玩家 1", colorClass: "player-1" },
+                { id: 2, pos: 0, money: 10000, skipTurn: 0, icon: '<i class="fas fa-robot"></i>', name: "玩家 2", colorClass: "player-2" }
+            ];
+            this.currentPlayerIndex = 0;
+            this.isMoving = false;
+            this.isGameOver = false;
+            
+            this.diceWrapper = document.getElementById('dice-wrapper');
+            this.dice = document.getElementById('dice');
+            this.statusText = document.getElementById('status-text');
+            this.rollBtn = document.getElementById('roll-btn');
+            
+            // Modal elements
+            this.overlay = document.getElementById('overlay-layer');
+            this.cardContainer = document.getElementById('card-scene');
+            this.modalBox = document.getElementById('modal-box');
+            this.modalTitle = document.getElementById('modal-title');
+            this.modalText = document.getElementById('modal-text');
+            this.modalYes = document.getElementById('modal-yes');
+            this.modalNo = document.getElementById('modal-no');
+
+            this.cardFront = document.getElementById('card-front-face');
+            this.cardFront.addEventListener('click', () => {
+                if(!this.cardContainer.classList.contains('flipped')) this.cardContainer.classList.add('flipped');
+            });
+
+            this.initBoard();
+            this.renderPlayers();
+            this.updateInfoPanel();
+        }
+
+        initBoard() {
+            const container = document.getElementById('game-container');
+            mapData.forEach((data, index) => {
+                const tile = document.createElement('div');
+                tile.className = 'tile';
+                tile.id = `tile-${index}`;
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'tile-name';
+                nameDiv.innerText = data.name;
+                tile.appendChild(nameDiv);
+
+                if (data.type === 'prop') {
+                    const priceDiv = document.createElement('div');
+                    priceDiv.className = 'tile-price';
+                    priceDiv.innerText = `$${data.price}`;
+                    tile.appendChild(priceDiv);
+                    
+                    const houseContainer = document.createElement('div');
+                    houseContainer.className = 'house-container';
+                    houseContainer.id = `houses-${index}`;
+                    tile.appendChild(houseContainer);
+                } else if (data.type === 'chance') {
+                    tile.classList.add("is-chance");
+                    tile.innerHTML = '<i class="fas fa-question-circle" style="font-size:3vmin;margin-bottom:5px;"></i>機會';
+                } else if (data.type === 'destiny') {
+                    tile.classList.add("is-destiny");
+                    tile.innerHTML = '<i class="fas fa-exclamation-circle" style="font-size:3vmin;margin-bottom:5px;"></i>命運';
+                }
+
+                const coords = gridCoordinates[index];
+                tile.style.gridRow = coords.r;
+                tile.style.gridColumn = coords.c;
+                container.appendChild(tile);
+            });
+        }
+
+        renderPlayers() {
+            document.querySelectorAll('.player-token').forEach(el => el.remove());
+            document.querySelectorAll('.tile').forEach(tile => tile.classList.remove('has-p1', 'has-p2'));
+
+            this.players.forEach(p => {
+                const tile = document.getElementById(`tile-${p.pos}`);
+                tile.classList.add(p.id === 1 ? 'has-p1' : 'has-p2');
+                const token = document.createElement('div');
+                token.className = `player-token ${p.colorClass}`;
+                token.innerHTML = p.icon;
+                tile.appendChild(token);
+            });
+        }
+
+        renderProperties() {
+            mapData.forEach((data, index) => {
+                if (data.type === 'prop') {
+                    const tile = document.getElementById(`tile-${index}`);
+                    const houseContainer = document.getElementById(`houses-${index}`);
+                    
+                    tile.classList.remove('owned-p1', 'owned-p2');
+                    if (data.owner === 1) tile.classList.add('owned-p1');
+                    if (data.owner === 2) tile.classList.add('owned-p2');
+
+                    houseContainer.innerHTML = '';
+                    for (let i = 0; i < data.level; i++) {
+                        const house = document.createElement('i');
+                        house.className = 'fas fa-home house-icon';
+                        houseContainer.appendChild(house);
+                    }
+                }
+            });
+        }
+
+        updateInfoPanel() {
+            document.getElementById('p1-money').innerText = this.players[0].money.toLocaleString();
+            document.getElementById('p2-money').innerText = this.players[1].money.toLocaleString();
+            document.getElementById('p1-skip').style.display = this.players[0].skipTurn > 0 ? 'flex' : 'none';
+            document.getElementById('p2-skip').style.display = this.players[1].skipTurn > 0 ? 'flex' : 'none';
+            
+            document.getElementById('p1-card').classList.toggle('active', this.currentPlayerIndex === 0);
+            document.getElementById('p2-card').classList.toggle('active', this.currentPlayerIndex === 1);
+        }
+
+        async turn() {
+            if (this.isMoving || this.isGameOver) return;
+            this.isMoving = true;
+            this.rollBtn.disabled = true;
+            
+            const player = this.players[this.currentPlayerIndex];
+
+            // 檢查暫停
+            if (player.skipTurn > 0) {
+                player.skipTurn--;
+                this.statusText.innerText = `${player.name} 暫停一次\n(剩餘 ${player.skipTurn} 次)`;
+                this.updateInfoPanel();
+                await new Promise(r => setTimeout(r, 1500));
+                this.switchTurn();
+                return;
+            }
+
+            this.statusText.innerText = `${player.name} 擲骰中...`;
+            this.diceWrapper.style.display = 'block';
+            this.dice.style.transition = 'none';
+            this.dice.style.transform = 'rotateX(0deg) rotateY(0deg)';
+            void this.dice.offsetWidth; // 觸發重繪
+
+            const roll = Math.floor(Math.random() * 6) + 1;
+            
+            // 修正後的 3D 旋轉角度，確保視覺與數值一致
+            // 1:Front, 2:Back, 3:Right(-90y), 4:Left(90y), 5:Top(-90x), 6:Bottom(90x)
+            // 根據 CSS transform 定義校正:
+            const rotations = {
+                1: { x: 720, y: 720 },
+                2: { x: 720, y: 900 },
+                3: { x: 720, y: 630 }, 
+                4: { x: 720, y: 810 }, 
+                5: { x: 630, y: 720 }, 
+                6: { x: 810, y: 720 }  
+            };
+            const target = rotations[roll];
+            
+            // 加入些微隨機偏移讓動畫更自然
+            const rx = target.x + (Math.random() - 0.5) * 5;
+            const ry = target.y + (Math.random() - 0.5) * 5;
+
+            this.dice.style.transition = 'transform 1.5s cubic-bezier(0.1, 0.9, 0.2, 1)';
+            this.dice.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+
+            await new Promise(r => setTimeout(r, 1500));
+            this.statusText.innerText = `擲出了 ${roll} 點`;
+            await new Promise(r => setTimeout(r, 1000));
+            this.diceWrapper.style.display = 'none';
+
+            // 移動
+            await this.movePlayerStepByStep(roll);
+
+            // 判斷地點事件
+            const locData = mapData[player.pos];
+            if (locData.type === 'chance') {
+                const card = await this.triggerCard("chance");
+                await this.processCardEffect(card);
+            } else if (locData.type === 'destiny') {
+                const card = await this.triggerCard("destiny");
+                await this.processCardEffect(card);
+            } else if (locData.type === 'prop') {
+                await this.handleProperty(locData, player);
+            }
+
+            if (!this.isGameOver) this.switchTurn();
+        }
+
+        async movePlayerStepByStep(steps) {
+            const player = this.players[this.currentPlayerIndex];
+            const direction = steps > 0 ? 1 : -1;
+            const count = Math.abs(steps);
+
+            for (let i = 0; i < count; i++) {
+                let nextPos = (player.pos + direction) % mapData.length;
+                if (nextPos < 0) nextPos += mapData.length;
+                player.pos = nextPos;
+                this.renderPlayers();
+                // 播放效果音? 這裡用 delay 模擬
+                await new Promise(r => setTimeout(r, 300));
+            }
+            this.statusText.innerText = `抵達：${mapData[player.pos].name}`;
+            await new Promise(r => setTimeout(r, 500));
+        }
+
+        async handleProperty(prop, player) {
+            // 1. 無人擁有的地 -> 詢問購買
+            if (prop.owner === null) {
+                const wantBuy = await this.askQuestion("購買地產", `${player.name}，要購買 ${prop.name} 嗎？\n\n價格: $${prop.price}\n(目前現金: $${player.money})`);
+                if (wantBuy) {
+                    if (player.money >= prop.price) {
+                        player.money -= prop.price;
+                        prop.owner = player.id;
+                        this.statusText.innerText = `購買成功！\n${player.name} 獲得了 ${prop.name}`;
+                        this.renderProperties();
+                        this.updateInfoPanel();
+                        await new Promise(r => setTimeout(r, 1000));
+                    } else {
+                        this.statusText.innerText = `現金不足，無法購買！`;
+                        await new Promise(r => setTimeout(r, 1500));
+                    }
+                }
+            } 
+            // 2. 對手的地 -> 付過路費
+            else if (prop.owner !== player.id) {
+                const rent = prop.rent * (1 + prop.level);
+                this.statusText.innerText = `踩到玩家 ${prop.owner} 的地盤！\n支付過路費 $${rent}`;
+                await new Promise(r => setTimeout(r, 1500));
+                
+                player.money -= rent;
+                this.players[prop.owner - 1].money += rent;
+                this.updateInfoPanel();
+                
+                if (this.checkBankruptcy(player)) return;
+            } 
+            // 3. 自己的地 -> 詢問蓋房
+            else {
+                if (prop.level < 3) {
+                    const buildCost = Math.floor(prop.price * 0.5);
+                    const wantBuild = await this.askQuestion("升級地產", `歡迎回家！要為 ${prop.name} 加蓋房屋嗎？\n\n費用: $${buildCost}`);
+                    if (wantBuild) {
+                        if (player.money >= buildCost) {
+                            player.money -= buildCost;
+                            prop.level++;
+                            this.statusText.innerText = `擴建成功！\n${prop.name} 升級為 ${prop.level} 級房屋`;
+                            this.renderProperties();
+                            this.updateInfoPanel();
+                            await new Promise(r => setTimeout(r, 1000));
+                        } else {
+                            this.statusText.innerText = `現金不足！`;
+                            await new Promise(r => setTimeout(r, 1500));
+                        }
+                    }
+                } else {
+                    this.statusText.innerText = `${prop.name} 已達最高等級！`;
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            }
+        }
+
+        async processCardEffect(card) {
+            const player = this.players[this.currentPlayerIndex];
+            
+            if (card.type === 'money') {
+                player.money += card.val;
+                this.statusText.innerText = card.val > 0 ? `獲得資金 $${card.val}` : `支付資金 $${Math.abs(card.val)}`;
+            } else if (card.type === 'move') {
+                this.statusText.innerText = `移動中...`;
+                await new Promise(r => setTimeout(r, 500));
+                await this.movePlayerStepByStep(card.val);
+            } else if (card.type === 'goto') {
+                this.statusText.innerText = `瞬間移動！`;
+                await new Promise(r => setTimeout(r, 800));
+                player.pos = card.target;
+                this.renderPlayers();
+            } else if (card.type === 'stop') {
+                player.skipTurn = card.val;
+                this.statusText.innerText = `下回合暫停！`;
+            }
+            
+            this.updateInfoPanel();
+            this.checkBankruptcy(player);
+            await new Promise(r => setTimeout(r, 1000));
+        }
+
+        checkBankruptcy(player) {
+            if (player.money < 0) {
+                this.isGameOver = true;
+                const winner = this.players.find(p => p.id !== player.id);
+                
+                this.overlay.classList.add('active');
+                this.modalBox.classList.add('active-mode');
+                this.cardContainer.classList.remove('active-mode');
+                
+                this.modalTitle.innerText = "遊戲結束";
+                this.modalTitle.style.color = "#d32f2f";
+                this.modalText.innerHTML = `<span style="font-size:1.2em">${player.name} 破產了！</span><br><br>🏆 獲勝者：<span style="color:${winner.id===1?'#d32f2f':'#2e7d32'};font-weight:bold">${winner.name}</span>`;
+                this.modalYes.style.display = 'none';
+                this.modalNo.style.display = 'none';
+                
+                // 重新開始按鈕
+                const restartBtn = document.createElement('button');
+                restartBtn.className = 'modal-btn';
+                restartBtn.style.backgroundColor = '#4caf50';
+                restartBtn.innerText = "重新開始";
+                restartBtn.onclick = () => location.reload();
+                
+                // 清除舊按鈕並添加新按鈕
+                const btnGroup = this.modalBox.querySelector('.btn-group');
+                btnGroup.innerHTML = '';
+                btnGroup.appendChild(restartBtn);
+                
+                return true;
+            }
+            return false;
+        }
+
+        switchTurn() {
+            this.currentPlayerIndex = this.currentPlayerIndex === 0 ? 1 : 0;
+            const nextPlayer = this.players[this.currentPlayerIndex];
+            this.statusText.innerText = `輪到 ${nextPlayer.name}`;
+            this.statusText.style.color = nextPlayer.id === 1 ? '#d32f2f' : '#2e7d32';
+            this.rollBtn.disabled = false;
+            this.isMoving = false;
+        }
+
+        // 通用詢問函數
+        askQuestion(title, text) {
+            return new Promise((resolve) => {
+                this.overlay.classList.add('active');
+                this.modalBox.classList.add('active-mode');
+                this.cardContainer.classList.remove('active-mode');
+                
+                this.modalTitle.innerText = title;
+                this.modalText.innerText = text;
+
+                // 重置按鈕事件
+                const newYes = this.modalYes.cloneNode(true);
+                const newNo = this.modalNo.cloneNode(true);
+                this.modalYes.parentNode.replaceChild(newYes, this.modalYes);
+                this.modalNo.parentNode.replaceChild(newNo, this.modalNo);
+                this.modalYes = newYes;
+                this.modalNo = newNo;
+                
+                this.modalYes.style.display = 'inline-block';
+                this.modalNo.style.display = 'inline-block';
+
+                this.modalYes.onclick = () => { this.closeOverlay(); resolve(true); };
+                this.modalNo.onclick = () => { this.closeOverlay(); resolve(false); };
+            });
+        }
+
+        // 觸發卡片
+        triggerCard(type) {
+            return new Promise((resolve) => {
+                this.overlay.classList.add('active');
+                this.cardContainer.classList.add('active-mode');
+                this.modalBox.classList.remove('active-mode');
+                this.cardContainer.classList.remove('flipped'); // 重置翻面
+
+                const list = type === "chance" ? chanceCards : destinyCards;
+                this.currentCardData = list[Math.floor(Math.random() * list.length)];
+                
+                if (type === "chance") {
+                    this.cardFront.className = "card-front chance-bg";
+                    this.cardFront.innerHTML = '<i class="fas fa-question"></i><h2>機會</h2><p style="margin-top:10px;font-size:0.8em">點擊翻牌</p>';
+                    document.getElementById('card-title').innerText = "機會卡";
+                    document.getElementById('card-title').style.color = "#7b1fa2";
+                } else {
+                    this.cardFront.className = "card-front destiny-bg";
+                    this.cardFront.innerHTML = '<i class="fas fa-exclamation"></i><h2>命運</h2><p style="margin-top:10px;font-size:0.8em">點擊翻牌</p>';
+                    document.getElementById('card-title').innerText = "命運卡";
+                    document.getElementById('card-title').style.color = "#e64a19";
+                }
+
+                // 設定卡片內容
+                document.getElementById('card-icon-area').innerHTML = `<i class="fas ${this.currentCardData.icon}"></i>`;
+                document.getElementById('card-desc').innerText = this.currentCardData.text;
+                
+                this.currentCardResolve = resolve;
+            });
+        }
+
+        closeCard() {
+            this.closeOverlay();
+            if (this.currentCardResolve) {
+                this.currentCardResolve(this.currentCardData);
+                this.currentCardResolve = null;
+            }
+        }
+
+        closeOverlay() {
+            this.overlay.classList.remove('active');
+            this.cardContainer.classList.remove('active-mode');
+            this.modalBox.classList.remove('active-mode');
+        }
+    }
+
+    const game = new Game();
+</script>
+
+</body>
+</html>
